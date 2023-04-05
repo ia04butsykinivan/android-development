@@ -1,4 +1,6 @@
 import React, {useMemo, useState} from 'react';
+import {useNavigation} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Checkbox,
@@ -7,152 +9,149 @@ import {
   Button,
   TextField,
 } from 'react-native-ui-lib';
-
-enum Operation {
-  Area = 'area',
-  Perimeter = 'perimeter',
-}
-
-const operations = [
-  {
-    title: 'Площа',
-    type: Operation.Area,
-  },
-  {
-    title: 'Периметр',
-    type: Operation.Perimeter,
-  },
-];
-
-enum Shape {
-  Square = 'square',
-  Triangle = 'triangle',
-  Circle = 'circle',
-}
-
-const shapes = [
-  {
-    title: 'Квадрат',
-    type: Shape.Square,
-  },
-  {
-    title: 'Трикутник',
-    type: Shape.Triangle,
-  },
-  {
-    title: 'Коло',
-    type: Shape.Circle,
-  },
-];
-
-interface ISelectedOperations {
-  [Operation.Area]: boolean;
-  [Operation.Perimeter]: boolean;
-}
+import Toast from 'react-native-toast-message';
+import {IOperation, IRecord, IShape} from '../../types';
+import {operations, shapes} from '../../constants';
+import {convertRecordToString} from '../../helpers';
 
 function Main() {
-  const [selectedOperations, setSelectedOperations] =
-    useState<ISelectedOperations>({
-      area: false,
-      perimeter: false,
-    });
-  const [selectedShape, setSelectedShape] = useState<Shape>(Shape.Square);
+  const navigation = useNavigation();
+
+  const [selectedOperations, setSelectedOperations] = useState<IOperation[]>(
+    [],
+  );
+  const [selectedShape, setSelectedShape] = useState<IShape>(shapes[0]);
   const [hasSelectedPlaceholder, setHasSelectedPlaceholder] = useState(false);
 
-  const isOkButtonDisabled = useMemo(() => {
-    const hasSelectedOperations = Object.values(selectedOperations).some(
-      value => value,
-    );
+  const record = useMemo(
+    () => ({
+      operations: selectedOperations,
+      shape: selectedShape,
+    }),
+    [selectedOperations, selectedShape],
+  );
 
-    return !hasSelectedOperations;
-  }, [selectedOperations]);
+  const selectedOperationsIds = selectedOperations.reduce((acc, operation) => {
+    acc.push(operation.id);
+
+    return acc;
+  }, [] as IOperation['id'][]);
 
   const selectedPlaceholder = useMemo(() => {
     if (!hasSelectedPlaceholder) {
       return '';
     }
 
-    const selectedOperationsTitles = operations.reduce((acc, operation) => {
-      if (selectedOperations[operation.type]) {
-        acc.push(operation.title);
-      }
-
-      return acc;
-    }, [] as string[]);
-
-    const selectedShapeTitle = shapes.find(
-      shape => shape.type === selectedShape,
-    )?.title;
-
-    return `Обрані операції: ${selectedOperationsTitles.join(
-      ', ',
-    )}; обрана фігура: ${selectedShapeTitle}`;
-  }, [hasSelectedPlaceholder, selectedOperations, selectedShape]);
+    return convertRecordToString(record);
+  }, [hasSelectedPlaceholder, record]);
 
   return (
-    <View useSafeArea>
-      <View padding-16>
-        <View paddingB-16>
-          {operations.map(operation => (
-            <View paddingB-8>
-              <Checkbox
-                value={selectedOperations[operation.type]}
-                onValueChange={(value: boolean) =>
-                  handleOperationChange(operation.type, value)
-                }
-                label={operation.title}
-              />
+    <View padding-16>
+      <View paddingB-16>
+        {operations.map(operation => (
+          <View key={operation.id} paddingB-8>
+            <Checkbox
+              value={selectedOperationsIds.includes(operation.id)}
+              onValueChange={(value: boolean) =>
+                handleSelectedOperationsChange(operation, value)
+              }
+              label={operation.title}
+            />
+          </View>
+        ))}
+      </View>
+
+      <View paddingB-24>
+        <RadioGroup
+          initialValue={selectedShape.id}
+          onValueChange={handleShapeChange}>
+          {shapes.map(shape => (
+            <View key={shape.id} paddingB-8>
+              <RadioButton value={shape.id} label={shape.title} />
             </View>
           ))}
-        </View>
+        </RadioGroup>
+      </View>
 
-        <View paddingB-24>
-          <RadioGroup
-            initialValue={selectedShape}
-            onValueChange={handleShapeChange}>
-            {shapes.map(shape => (
-              <View paddingB-8>
-                <RadioButton value={shape.type} label={shape.title} />
-              </View>
-            ))}
-          </RadioGroup>
-        </View>
-
+      <View paddingB-8>
         <Button
           label="OK"
           size={Button.sizes.medium}
           onPress={handleOkPress}
-          disabled={isOkButtonDisabled}
+          disabled={!selectedOperations.length}
         />
-
-        {hasSelectedPlaceholder && (
-          <View paddingT-16>
-            <TextField
-              placeholder={selectedPlaceholder}
-              editable={false}
-              multiline
-            />
-          </View>
-        )}
       </View>
+
+      <Button
+        label="Відкрити"
+        size={Button.sizes.medium}
+        onPress={handleOpenPress}
+      />
+
+      {hasSelectedPlaceholder && (
+        <View paddingT-16>
+          <TextField
+            placeholder={selectedPlaceholder}
+            editable={false}
+            multiline
+          />
+        </View>
+      )}
     </View>
   );
 
-  function handleOperationChange(operationType: Operation, newValue: boolean) {
-    setSelectedOperations(prev => ({
-      ...prev,
-      [operationType]: newValue,
-    }));
+  function handleSelectedOperationsChange(
+    operation: IOperation,
+    newValue: boolean,
+  ) {
     setHasSelectedPlaceholder(false);
+
+    if (!newValue) {
+      setSelectedOperations(prev => prev.filter(o => operation.id !== o.id));
+
+      return;
+    }
+
+    setSelectedOperations(prev => [...prev, operation]);
   }
 
-  function handleShapeChange(newValue: Shape) {
-    setSelectedShape(newValue);
+  function handleShapeChange(newValue: IShape['id']) {
     setHasSelectedPlaceholder(false);
+
+    const shape = shapes.find(s => s.id === newValue);
+
+    if (!shape) {
+      return;
+    }
+
+    setSelectedShape(shape);
   }
 
-  function handleOkPress() {
+  async function handleOkPress() {
+    try {
+      const data = await AsyncStorage.getItem('records');
+      const records = (data ? JSON.parse(data) : []) as IRecord[];
+
+      await AsyncStorage.setItem(
+        'records',
+        JSON.stringify([...records, record]),
+      );
+
+      Toast.show({
+        type: 'success',
+        text1: 'Запис успішно додано',
+      });
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Не вдалося додати запис',
+      });
+    }
     setHasSelectedPlaceholder(true);
+  }
+
+  function handleOpenPress() {
+    navigation.navigate('Details' as never);
   }
 }
 
