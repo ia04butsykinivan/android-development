@@ -2,7 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {View, GridList, GridListItem} from 'react-native-ui-lib';
 import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {IRecord} from '../../types';
+import {IRecord} from '../../types/common';
 import {convertRecordToString} from '../../helpers';
 
 function Details() {

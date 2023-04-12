@@ -1,4 +1,4 @@
-import {IRecord} from './types';
+import {IRecord} from './types/common';
 
 function convertRecordToString(preview: IRecord) {
   const operationTitles = preview.operations.map(operation => operation.title);

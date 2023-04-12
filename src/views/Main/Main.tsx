@@ -10,7 +10,7 @@ import {
   TextField,
 } from 'react-native-ui-lib';
 import Toast from 'react-native-toast-message';
-import {IOperation, IRecord, IShape} from '../../types';
+import {IOperation, IRecord, IShape} from '../../types/common';
 import {operations, shapes} from '../../constants';
 import {convertRecordToString} from '../../helpers';
 

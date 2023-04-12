@@ -1,4 +1,4 @@
-import {IOperation, IShape} from './types';
+import {IOperation, IShape} from './types/common';
 
 const operations: IOperation[] = [
   {
